@@ -286,10 +286,37 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
 pub fn readFree(gpa: std.mem.Allocator, value: anytype) void {
     const T = @TypeOf(value);
     switch (@typeInfo(T)) {
+        .Array, .Vector => {
+            for (value) |element| {
+                bincode.readFree(gpa, element);
+            }
+        },
+        .Struct => |info| {
+            inline for (info.fields) |field| {
+                bincode.readFree(gpa, @field(value, field.name));
+            }
+        },
+        .Optional => {
+            if (value) |v| {
+                bincode.readFree(gpa, v);
+            }
+        },
+        .Union => |info| {
+            inline for (info.fields) |field| {
+                if (value == @field(T, field.name)) {
+                    return bincode.readFree(gpa, @field(value, field.name));
+                }
+            }
+        },
         .Pointer => |info| {
             switch (info.size) {
                 .One => gpa.destroy(value),
-                .Slice => gpa.free(value),
+                .Slice => {
+                    for (value) |item| {
+                        bincode.readFree(gpa, item);
+                    }
+                    gpa.free(value);
+                },
                 else => {},
             }
         },
