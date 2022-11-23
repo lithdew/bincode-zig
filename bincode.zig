@@ -110,7 +110,9 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
         .Struct => |info| {
             var data: U = undefined;
             inline for (info.fields) |field| {
-                @field(data, field.name) = try bincode.read(gpa, field.field_type, reader, params);
+                if (!field.is_comptime) {
+                    @field(data, field.name) = try bincode.read(gpa, field.field_type, reader, params);
+                }
             }
             return data;
         },
@@ -293,7 +295,9 @@ pub fn readFree(gpa: std.mem.Allocator, value: anytype) void {
         },
         .Struct => |info| {
             inline for (info.fields) |field| {
-                bincode.readFree(gpa, @field(value, field.name));
+                if (!field.is_comptime) {
+                    bincode.readFree(gpa, @field(value, field.name));
+                }
             }
         },
         .Optional => {
@@ -347,8 +351,10 @@ pub fn write(writer: anytype, data: anytype, params: bincode.Params) !void {
         .Struct => |info| {
             var maybe_err: anyerror!void = {};
             inline for (info.fields) |field| {
-                if (@as(?anyerror!void, maybe_err catch null) != null) {
-                    maybe_err = bincode.write(writer, @field(data, field.name), params);
+                if (!field.is_comptime) {
+                    if (@as(?anyerror!void, maybe_err catch null) != null) {
+                        maybe_err = bincode.write(writer, @field(data, field.name), params);
+                    }
                 }
             }
             return maybe_err;
