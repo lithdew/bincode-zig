@@ -99,8 +99,8 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
             inline for (info.fields) |field| {
                 if (raw_tag == @field(tag_type, field.name)) {
                     // https://github.com/ziglang/zig/issues/7866
-                    if (field.field_type == void) return @unionInit(U, field.name, {});
-                    const payload = try bincode.read(gpa, field.field_type, reader, params);
+                    if (field.type == void) return @unionInit(U, field.name, {});
+                    const payload = try bincode.read(gpa, field.type, reader, params);
                     return @unionInit(U, field.name, payload);
                 }
             }
@@ -111,7 +111,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
             var data: U = undefined;
             inline for (info.fields) |field| {
                 if (!field.is_comptime) {
-                    @field(data, field.name) = try bincode.read(gpa, field.field_type, reader, params);
+                    @field(data, field.name) = try bincode.read(gpa, field.type, reader, params);
                 }
             }
             return data;
@@ -202,12 +202,12 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             .Big => reader.readIntBig(u16),
                         };
                         return switch (info.signedness) {
-                            .unsigned => try std.math.cast(U, z),
+                            .unsigned => std.math.cast(U, z) orelse error.FailedToCastZZ,
                             .signed => zigzag: {
                                 if (z % 2 == 0) {
-                                    break :zigzag try std.math.cast(U, z / 2);
+                                    break :zigzag std.math.cast(U, z / 2) orelse error.FailedToCastZZ;
                                 } else {
-                                    break :zigzag ~(try std.math.cast(U, z / 2));
+                                    break :zigzag ~(std.math.cast(U, z / 2) orelse error.FailedToCastZZ);
                                 }
                             },
                         };
@@ -217,12 +217,12 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             .Big => reader.readIntBig(u32),
                         };
                         return switch (info.signedness) {
-                            .unsigned => try std.math.cast(U, z),
+                            .unsigned => std.math.cast(U, z) orelse error.FailedToCastZZ,
                             .signed => zigzag: {
                                 if (z % 2 == 0) {
-                                    break :zigzag try std.math.cast(U, z / 2);
+                                    break :zigzag std.math.cast(U, z / 2) orelse error.FailedToCastZZ;
                                 } else {
-                                    break :zigzag ~(try std.math.cast(U, z / 2));
+                                    break :zigzag ~(std.math.cast(U, z / 2) orelse error.FailedToCastZZ);
                                 }
                             },
                         };
@@ -232,12 +232,12 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             .Big => reader.readIntBig(u64),
                         };
                         return switch (info.signedness) {
-                            .unsigned => try std.math.cast(U, z),
+                            .unsigned => std.math.cast(U, z) orelse error.FailedToCastZZ,
                             .signed => zigzag: {
                                 if (z % 2 == 0) {
-                                    break :zigzag try std.math.cast(U, z / 2);
+                                    break :zigzag std.math.cast(U, z / 2) orelse error.FailedToCastZZ;
                                 } else {
-                                    break :zigzag ~(try std.math.cast(U, z / 2));
+                                    break :zigzag ~(std.math.cast(U, z / 2) orelse error.FailedToCastZZ);
                                 }
                             },
                         };
@@ -247,12 +247,12 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             .Big => reader.readIntBig(u128),
                         };
                         return switch (info.signedness) {
-                            .unsigned => try std.math.cast(U, z),
+                            .unsigned => std.math.cast(U, z) orelse error.FailedToCastZZ,
                             .signed => zigzag: {
                                 if (z % 2 == 0) {
-                                    break :zigzag try std.math.cast(U, z / 2);
+                                    break :zigzag std.math.cast(U, z / 2) orelse error.FailedToCastZZ;
                                 } else {
-                                    break :zigzag ~(try std.math.cast(U, z / 2));
+                                    break :zigzag ~(std.math.cast(U, z / 2) orelse error.FailedToCastZZ);
                                 }
                             },
                         };
@@ -262,12 +262,12 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             .Big => reader.readIntBig(u256),
                         };
                         return switch (info.signedness) {
-                            .unsigned => try std.math.cast(U, z),
+                            .unsigned => std.math.cast(U, z) orelse error.FailedToCastZZ,
                             .signed => zigzag: {
                                 if (z % 2 == 0) {
-                                    break :zigzag try std.math.cast(U, z / 2);
+                                    break :zigzag std.math.cast(U, z / 2) orelse error.FailedToCastZZ;
                                 } else {
-                                    break :zigzag ~(try std.math.cast(U, z / 2));
+                                    break :zigzag ~(std.math.cast(U, z / 2) orelse error.FailedToCastZZ);
                                 }
                             },
                         };
@@ -336,7 +336,7 @@ pub fn write(writer: anytype, data: anytype, params: bincode.Params) !void {
     };
 
     switch (@typeInfo(T)) {
-        .Type, .Void, .NoReturn, .Undefined, .Null, .Fn, .BoundFn, .Opaque, .Frame, .AnyFrame => return,
+        .Type, .Void, .NoReturn, .Undefined, .Null, .Fn, .Opaque, .Frame, .AnyFrame => return,
         .Bool => return writer.writeByte(@boolToInt(data)),
         .Enum => |info| return bincode.write(writer, if (@typeInfo(info.tag_type).Int.bits < 8) @as(u8, @enumToInt(data)) else @enumToInt(data), params),
         .Union => |info| {
@@ -370,7 +370,7 @@ pub fn write(writer: anytype, data: anytype, params: bincode.Params) !void {
         },
         .Array, .Vector => {
             if (params.include_fixed_array_length) {
-                try bincode.write(writer, try std.math.cast(u64, data.len), params);
+                try bincode.write(writer, std.math.cast(u64, data.len) orelse return error.DataTooLarge, params);
             }
             for (data) |element| {
                 try bincode.write(writer, element, params);
@@ -382,7 +382,7 @@ pub fn write(writer: anytype, data: anytype, params: bincode.Params) !void {
                 .One => return bincode.write(writer, data.*, params),
                 .Many => return bincode.write(writer, std.mem.span(data), params),
                 .Slice => {
-                    try bincode.write(writer, try std.math.cast(u64, data.len), params);
+                    try bincode.write(writer, std.math.cast(u64, data.len) orelse return error.DataTooLarge, params);
                     for (data) |element| {
                         try bincode.write(writer, element, params);
                     }
