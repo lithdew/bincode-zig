@@ -2,22 +2,6 @@
 
 A [Zig](https://ziglang.org) implementation of the [Bincode](https://github.com/bincode-org/bincode) binary format specification.
 
-## Setup
-
-In build.zig:
-
-```zig
-const std = @import("std");
-
-const bincode_pkg: std.build.Pkg = .{
-    .name = "bincode",
-    .path = .{ .path = "bincode-zig/bincode.zig" },
-};
-
-// Assume 'step' is a *std.build.LibExeObjStep.
-step.addPackage(bincode_pkg);
-```
-
 ## Specification
 
 The endianness of serialized values by default is little-endian. This may be configured.
