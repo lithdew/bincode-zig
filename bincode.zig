@@ -6,18 +6,18 @@ const bincode = @This();
 
 pub const Params = struct {
     pub const legacy: Params = .{
-        .endian = .Little,
+        .endian = .little,
         .int_encoding = .fixed,
         .include_fixed_array_length = true,
     };
 
     pub const standard: Params = .{
-        .endian = .Little,
+        .endian = .little,
         .int_encoding = .fixed,
         .include_fixed_array_length = false,
     };
 
-    endian: std.builtin.Endian = .Little,
+    endian: std.builtin.Endian = .little,
     int_encoding: enum { variable, fixed } = .fixed,
     include_fixed_array_length: bool = false,
 };
@@ -54,7 +54,7 @@ pub fn Option(comptime T: type) type {
 pub fn sizeOf(data: anytype, params: bincode.Params) usize {
     var stream = std.io.countingWriter(std.io.null_writer);
     bincode.write(stream.writer(), data, params) catch unreachable;
-    return @as(usize, @intCast(stream.bytes_written));
+    return @intCast(stream.bytes_written);
 }
 
 pub fn readFromSlice(gpa: std.mem.Allocator, comptime T: type, slice: []const u8, params: bincode.Params) !T {
@@ -197,10 +197,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             },
                         };
                     } else if (b == 251) {
-                        const z = try switch (params.endian) {
-                            .Little => reader.readIntLittle(u16),
-                            .Big => reader.readIntBig(u16),
-                        };
+                        const z = try reader.readInt(u16, params.endian);
                         return switch (info.signedness) {
                             .unsigned => std.math.cast(U, z) orelse return error.FailedToCastZZ,
                             .signed => zigzag: {
@@ -212,10 +209,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             },
                         };
                     } else if (b == 252) {
-                        const z = try switch (params.endian) {
-                            .Little => reader.readIntLittle(u32),
-                            .Big => reader.readIntBig(u32),
-                        };
+                        const z = try reader.readInt(u32, params.endian);
                         return switch (info.signedness) {
                             .unsigned => std.math.cast(U, z) orelse return error.FailedToCastZZ,
                             .signed => zigzag: {
@@ -227,10 +221,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             },
                         };
                     } else if (b == 253) {
-                        const z = try switch (params.endian) {
-                            .Little => reader.readIntLittle(u64),
-                            .Big => reader.readIntBig(u64),
-                        };
+                        const z = try reader.readInt(u64, params.endian);
                         return switch (info.signedness) {
                             .unsigned => std.math.cast(U, z) orelse return error.FailedToCastZZ,
                             .signed => zigzag: {
@@ -242,10 +233,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             },
                         };
                     } else if (b == 254) {
-                        const z = try switch (params.endian) {
-                            .Little => reader.readIntLittle(u128),
-                            .Big => reader.readIntBig(u128),
-                        };
+                        const z = try reader.readInt(u128, params.endian);
                         return switch (info.signedness) {
                             .unsigned => std.math.cast(U, z) orelse return error.FailedToCastZZ,
                             .signed => zigzag: {
@@ -257,10 +245,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                             },
                         };
                     } else {
-                        const z = try switch (params.endian) {
-                            .Little => reader.readIntLittle(u256),
-                            .Big => reader.readIntBig(u256),
-                        };
+                        const z = try reader.readInt(u256, params.endian);
                         return switch (info.signedness) {
                             .unsigned => std.math.cast(U, z) orelse return error.FailedToCastZZ,
                             .signed => zigzag: {
@@ -273,10 +258,7 @@ pub fn read(gpa: std.mem.Allocator, comptime T: type, reader: anytype, params: b
                         };
                     }
                 },
-                .fixed => return switch (params.endian) {
-                    .Little => reader.readIntLittle(U),
-                    .Big => reader.readIntBig(U),
-                },
+                .fixed => return try reader.readInt(U, params.endian),
             }
         },
         else => {},
@@ -423,43 +405,25 @@ pub fn write(writer: anytype, data: anytype, params: bincode.Params) !void {
                     };
 
                     if (z < 251) {
-                        return writer.writeByte(@as(u8, @intCast(z)));
+                        return writer.writeByte(@intCast(z));
                     } else if (z <= std.math.maxInt(u16)) {
                         try writer.writeByte(251);
-                        return switch (params.endian) {
-                            .Little => writer.writeIntLittle(u16, @as(u16, @intCast(z))),
-                            .Big => writer.writeIntBig(u16, @as(u16, @intCast(z))),
-                        };
+                        return writer.writeInt(u16, @intCast(z), params.endian);
                     } else if (z <= std.math.maxInt(u32)) {
                         try writer.writeByte(252);
-                        return switch (params.endian) {
-                            .Little => writer.writeIntLittle(u32, @as(u32, @intCast(z))),
-                            .Big => writer.writeIntBig(u32, @as(u32, @intCast(z))),
-                        };
+                        return writer.writeInt(u32, @intCast(z), params.endian);
                     } else if (z <= std.math.maxInt(u64)) {
                         try writer.writeByte(253);
-                        return switch (params.endian) {
-                            .Little => writer.writeIntLittle(u64, @as(u64, @intCast(z))),
-                            .Big => writer.writeIntBig(u64, @as(u64, @intCast(z))),
-                        };
+                        return writer.writeInt(u64, @intCast(z), params.endian);
                     } else if (z <= std.math.maxInt(u128)) {
                         try writer.writeByte(254);
-                        return switch (params.endian) {
-                            .Little => writer.writeIntLittle(u128, @as(u128, @intCast(z))),
-                            .Big => writer.writeIntBig(u128, @as(u128, @intCast(z))),
-                        };
+                        return writer.writeInt(u128, @intCast(z), params.endian);
                     } else {
                         try writer.writeByte(255);
-                        return switch (params.endian) {
-                            .Little => writer.writeIntLittle(u256, @as(u256, @intCast(z))),
-                            .Big => writer.writeIntBig(u256, @as(u256, @intCast(z))),
-                        };
+                        return writer.writeInt(u256, @intCast(z), params.endian);
                     }
                 },
-                .fixed => return switch (params.endian) {
-                    .Little => writer.writeIntLittle(T, data),
-                    .Big => writer.writeIntBig(T, data),
-                },
+                .fixed => return writer.writeInt(T, data, params.endian),
             }
         },
         else => {},
